@@ -1,0 +1,32 @@
+  --> Focus on european countries 
+1: Import and make tidy
+Datasets:
+
+GHO, 
+UN
+Additional data for beer, wine (+ spirits) --> Timeframe 2010-2016 
+Geographic --> for visualisation
+
+types:
+Beer, Wine, Spirits (optional)
+        
+Tasks:
+Karol: gdp-source, converted gho, 2012-2010
+Me: geography stuff, tidy gho, iso list --> referncing, 2014-2016
+
+2: Write down the hypothesis
+
+a) Richer "xountries" drink more wine
+b) More wine in wine producing countries
+
+
+minimum: Question 1
+good: Question 1 and 2a, b
+
+Due Date: tuesday, 22 January
+
+ 
+
+
+
+
