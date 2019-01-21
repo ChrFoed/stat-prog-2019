@@ -9,6 +9,13 @@ library(dplyr)
 # Path for eu employmnet data
 filePath = 'stat-prog-2019/rawdata_employment_eu/lfsa_pganws_1_Data.csv'
 
+# Create directories if the don't exist
+if(!dir.exists(file.path('stat-prog-2019', 'data')))
+  dir.create(file.path('stat-prog-2019','data'), showWarnings = FALSE)
+# Create directories if the don't exist
+if(!dir.exists(file.path('stat-prog-2019/data', 'clean_employment_data')))
+  dir.create(file.path('stat-prog-2019/data','clean_employment_data'), showWarnings = FALSE)
+
 # Load employment data eu
 employment_data = read.csv(filePath,encoding="UTF-8")
 # isorefernece it via custom package
@@ -27,5 +34,5 @@ for(wstatus in dfWstatus){
   dfName = tolower(gsub(" ", "_", levels(droplevels(wstatus$WSTATUS)), fixed = TRUE))
   # Assign dataframe to dynamic created variable
   assign(dfName, wstatus)
-  write.csv(wstatus, file = paste0("stat-prog-2019/clean_employment_data/",dfName,'.csv'))
+  write.csv(wstatus, file = paste0("stat-prog-2019/data/clean_employment_data/",dfName,'.csv'))
 }
