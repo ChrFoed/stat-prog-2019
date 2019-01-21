@@ -1,12 +1,13 @@
 # Should be only adapt if sth at the project structure is changed
-path2countries = 'project/countries/world_countries/data/en/'
+path2countries = 'stat-prog-2019/countries/world_countries/data/'
 
 joinNACountries <- function(targetDf, ldata, column) {
   `%>%` <- magrittr::`%>%`
+  print(head(targetDf))
   joined = targetDf %>% 
     dplyr::left_join( y = dplyr::select(ldata, c(name, alpha2)), by = c('GEO'='name')) %>%
     dplyr::mutate(isoref = dplyr::case_when(is.na(isoref) == TRUE ~ as.factor(alpha2), is.na(isoref) == FALSE ~ as.factor(isoref)))
-  print(dplyr::filter(joined, GEO == 'Austria'))
+  return(dplyr::select(joined, -alpha2))
 }
 #' @export
 isoref <- function(dataframe,column){
@@ -18,11 +19,6 @@ isoref <- function(dataframe,column){
   for (currentFile in files) {
     langdata <- read.csv(currentFile, header=TRUE)
     dataframe = joinNACountries(dataframe,langdata, column)
-    # print('result')
-    # print(test)
-    ## some code
-    #write.table(newdata, file=sub(pattern=".txt$", replacement="test.txt", x=currentFile))
   }
-  #MyData <- read.csv(file="c:/TheDataIWantToReadIn.csv", header=TRUE, sep=",")
-  return('test1')
+  return(list("matched" = dplyr::filter(dataframe, !is.na(dataframe$isoref)),"unmatched" = dplyr::filter(dataframe, is.na(dataframe$isoref))))
 }
