@@ -75,4 +75,3 @@ for(variable in variableStorage){
 }
 
 # Get Key facts from data, would be TIME, WS_STATUS and 
-
