@@ -17,9 +17,9 @@ if(!dir.exists(file.path('stat-prog-2019', 'data')))
 if(!dir.exists(file.path('stat-prog-2019/data', 'clean_employment_data')))
   dir.create(file.path('stat-prog-2019/data','clean_employment_data'), showWarnings = FALSE)
 
-# Load employment data eu
+# Load employment data eu 
+# Maybe add more encoding stuff....
 employment_data = read.csv(filePath,encoding="UTF-8")
-str(employment_data)
 # isorefernece it via custom package
 isorefEmploymentData = isoref(employment_data, "GEO")
 matchedEmployment = as.data.frame(isorefEmploymentData[["matched"]])
@@ -29,10 +29,14 @@ matchedEmployment %<>%
   mutate(TIME= format(as.character(matchedEmployment$TIME), "%Y"))
 # make value an actual value of the format 0,000.3
 matchedEmployment %<>%
-  mutate(Value= as.double(gsub(",","",Value))*1000)
+  mutate(Value= as.double(gsub(",","",Value)))
 # Replace all NA withs with 0
 matchedEmployment$Value[is.na(matchedEmployment$Value)] = 0
-head(matchedEmployment)
+
+# NOTE:
+# remove unessary columns (AGE, CITIZEN)
+# keep thousands --> PUT IT INTO THE DOCUMENTATION
+
 # split it up by the Workstatus, can be Population, active persons,....
 dfWstatus = split(matchedEmployment, matchedEmployment$WSTATUS, drop = TRUE)
 # List for variable name
@@ -51,14 +55,22 @@ for(wstatus in dfWstatus){
   write.csv(wstatus, file = paste0("stat-prog-2019/data/clean_employment_data/",dfName,'.csv'))
 }
 
+#HArmonise data
+
 ## Create key frames of the differen work stati
 for(variable in variableStorage){ 
-  currentDataset = get(variable)
-  print(variable)
+  currentDataset = get(unemployed_persons)
+  head(currentDataset)
+  # NOTE: use scale_y_continous with breaks --> breaks should be unique years
+  #print(c(unique(currentDataset$TIME)))
   currentDataset %>%
-    ggplot(aes(x=TIME, y=Value, title = paste0('Work status: ',variable))) + 
+    filter(SEX == 'Total') %>%
+    ggplot(aes(x=TIME, y=Value)) + 
+    scale_y_continuous(breaks=unique(currentDataset$TIME)) +
     geom_jitter(alpha=0.5) +
     geom_smooth() +
+    labs(title=paste0('Work status: ',variable)) +
+    labs(x="year", y="Countries per year")+
     facet_wrap( ~ GEO, scales = "free_x")
 }
 
