@@ -12,29 +12,58 @@ knitr::opts_chunk$set(echo = TRUE)
 # NOTE: Make more elegant way to install library(rjson).....maybe as a package
 ```{r, include=FALSE}
 library(dplyr)
+library(magrittr)
 library(ggplot2)
-library(rjson)
+# never knew there was an gdla r package --> but awesome!
+library(rgdal)
 library(jsonlite)
 library(leaflet)
-library(RCurl)
+```
+## Set Working directory
+```{r}
+#setwd('stat-prog-2019')
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+## Read provided shapefiles
+Thanks for natural erath data to provide good and high quality geodata all over the world (http://naturalearthdata.com/)
+```{r}
+eustates <- readOGR("shp/world/world_countries.shp",
+  layer = "world_countries", GDAL1_integer64_policy = TRUE)
+```
+## add datat to shapefile
+```{r}
+data = read.csv(file="data/clean_euro_data/unemployed_persons_data.csv")
+# uppercase isocode for matching with geometries
+data %<>% 
+  mutate(isocode = toupper(isocode))
+# use spatial merge
+eustates = sp::merge(eustates, data, by="isocode",duplicateGeoms = TRUE)
+  
 ```
 
-## Including Plots
+
+## Generate Map
 
 You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
+```{r}
+# define labels
+labels <- sprintf(
+  "<strong>%s</strong><br/>%s: %g",
+  eustates$label, eustates$WSTATUS, eustates$Value
+) %>% lapply(htmltools::HTML)
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+leaflet(eustates) %>%
+  # set extent for europe
+  fitBounds(-15.117188, 32.101190, 39.199219,70.844673) %>%
+  addPolygons(color = "#444444", weight = 1, smoothFactor = 0.5,
+    opacity = 1.0, fillOpacity = 0.5,
+    fillColor =  ~colorQuantile("YlOrRd", Value)(Value),
+    highlightOptions = highlightOptions(color = "white", weight = 2,
+      bringToFront = TRUE),
+    label = labels,
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "15px",
+      direction = "auto"))
+```
