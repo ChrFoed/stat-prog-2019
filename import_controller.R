@@ -10,10 +10,10 @@ library(isoreferencing)
 library(magrittr)
 library(dplyr)
 library(purrr)
-
+print(list.files())
 # Create directories if the don't exist for exporting data
-if(!dir.exists(file.path('stat-prog-2019', 'data')))
-  dir.create(file.path('stat-prog-2019','data'), showWarnings = FALSE)
+if(!dir.exists(file.path('.', 'data')))
+  dir.create(file.path('.','data'), showWarnings = TRUE)
 
 # Fileenvironemnets
 # gho -> File contains Data about drinking behaviour on countrylevel
