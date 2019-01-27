@@ -31,6 +31,9 @@ eustates <- readOGR("shp/world/world_countries.shp",
   layer = "world_countries", GDAL1_integer64_policy = TRUE)
 ```
 ## add datat to shapefile
+
+You can take any data you want, if it has at least a isocode column with iso2 values in it (PL, AT,...)
+
 ```{r}
 data = read.csv(file="data/clean_euro_data/unemployed_persons_data.csv")
 # uppercase isocode for matching with geometries
@@ -44,7 +47,9 @@ eustates = sp::merge(eustates, data, by="isocode",duplicateGeoms = TRUE)
 
 ## Generate Map
 
-You can also embed plots, for example:
+You can easily adapt this tooltip regarding two things:
+- Define an html string
+- select the correct columns
 
 ```{r}
 # define labels
