@@ -1,0 +1,279 @@
+---
+title: "Import Controller"
+author: "Christian Födermayr, Karol Jakob Kulmar"
+date: "2/15/2019"
+output: html_document
+---
+  
+  ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Import Workflow
+
+#### Basic Problems:
+
+We will use data from three different sources for our project. All data have an geographic component on the same administrative Level (country) and a time component (year). For further analysis the common denominator is at first place the administrative Unit and on second place the year. 
+The first step is to bring the data in the most homogenous form as possible, but before that we should take a look on the different datasets. The GHO and the worldbank datasource is pretty standardized and should’nt lead to an overhead. But the eurostat datasource (Dataportal of the European Union, eurostat) which is a multilingual portal to support all official spoken languages in the european union can lead to some issues. The year won’t be the problem but comparing Austria with Österreich can lead to a lot of mismatches. 
+We have to bring all geographic information to an standardized form which is interchangeable troughout our datamodel. So we decided to use the ISO Country code (https://de.wikipedia.org/wiki/ISO-3166-1-Kodierliste)  as an interdataset connector. The second problem is to find the iso codes according to the countrynames, regarding the fact that they don’t have to be in english. 
+
+#### Solution:
+Best way is to make the most generic solution. Thanks to an opensource contributor there is a github repository which contains for every major language in the world a translation from country to iso2 and iso3 code. (https://github.com/stefangabos/world_countries.git). 
+In the first step we cloned the repository into our project repository and created an custom R package named isoreferencing as wrapper around the datafiles. 
+
+For the custom r package we used the package devtools. 
+Content of the r package:
+```{r}
+# Path to country translation data, Should be only adapt if sth at the project structure is changed
+path2countries = 'countries/world_countries/data/'
+
+#### NOTE: Do not load libs into your custom package
+####################################################
+
+# Function that gets an path and if there is  "os" windows running - regex it and gives it back 
+#' @export
+getSystemConformPath = function(path) {
+  if (.Platform$OS.type == "windows") {
+    # Fix returns ... \\ instead of /
+    return(gsub("/",'\\\\',path))
+  } else {
+    return(path)
+  }
+}
+
+# join isocode from the countries-translation-source to the input dataframe
+joinNACountries <- function(targetDf, ldata) {
+  # workaround for using the pipe operator
+  `%>%` <- magrittr::`%>%`
+  # join iso codes to dataframe based on the country column
+  joined = targetDf %>% 
+    dplyr::left_join( y = dplyr::select(ldata, c(name, alpha2)), by = c('geolabel'  = 'name')) %>%
+    dplyr::mutate(isocode = dplyr::case_when(is.na(isocode) == TRUE ~ as.factor(alpha2), is.na(isocode) == FALSE ~ as.factor(isocode)))
+  return(dplyr::select(joined, -alpha2))
+}
+# Export following function to make it public accesible
+#' @export
+# Description: adds the iso column to the inputdataframe
+# Input Parameters: dataframe <df>, dataframe <String>
+# Returns list with two dataframes: 'matched' and 'unmatched' rows
+isoref <- function(dataframe,column){
+  # add the iso column to the dataframe MISSING: check if exits
+  dataframe['isocode'] <- NA
+  dataframe['isocode'] = as.factor(dataframe['isocode'])
+  # read all translated country files, use the systme-path-translator function to make sure that the files are readable
+  files <- list.files(getSystemConformPath(path2countries), pattern="countries.csv$", include.dirs = TRUE, recursive=TRUE, full.names=TRUE)
+  #iterate over files and join the correct isocodes
+  for (currentFile in files) {
+    langdata <- read.csv(currentFile, header=TRUE)
+    dataframe = joinNACountries(dataframe,langdata)
+  }
+  return(list("matched" = dplyr::filter(dataframe, !is.na(dataframe$isocode)),"unmatched" = dplyr::filter(dataframe, is.na(dataframe$isocode))))
+}
+```
+
+To use this custom package we have to build, and install it. Make sure to rebuilt it after changes otherwise you only get the last built one.
+```{r}
+devtools::build('isoreferencing')
+devtools::install('isoreferencing')
+library(isoreferencing)
+```
+
+#### Install dependencies
+
+Install dependencies and create target folder for processed files. 
+
+```{r, results=FALSE, collapse=TRUE}
+# load needed additional packages
+library(magrittr)
+library(dplyr)
+library(purrr)
+# Create directories if the don't exist for exporting data
+if(!dir.exists(file.path('.', 'data')))
+  dir.create(file.path('.','data'), showWarnings = TRUE)
+```
+
+
+#### Config for Datasources
+
+In this part we created an import config. The idea is that most of the datasources have their special structure that differs from other datasources but doesn't differ from other data in the same source. So if we want to know something different from the dataset (f.ex other columns, etc) or read a complete different file from the same source we can adjust basic parameters in the config and in the best case there aren't any code changes necessary. 
+
+```{r}
+# Manual for source-config: 
+  # "filepath" = --> path to the rawfile - make sure to use the "correct path to os" function from custom isoreferencing package  
+  # "exportOptions" = list('folder' = <targetfiolder>, 'name' = <filename>),
+  # "geocolumn" = --> name of the geocolumn,  
+  # "options" = list("header" = <boolean>) --> here you can define import options,
+  # "select" = c("column1","column2","column5"), --> which column you want in the processed file
+  # "filter" = list("cols" =list("WSTATUS"), "conds" = list("Unemployed persons")) # add multiple arguments support -_> should be a gnereic filter....but     supports currently only one filter. Should make the filter process configurable...
+
+# Fileenvironemnets
+
+# gho -> File contains Data about drinking behaviour on countrylevel
+GHOconfig <- list(
+  "filepath" = getSystemConformPath('rawdata/gho/gho_csv.csv'), 
+  "exportOptions" = list('folder' = 'clean_gho_data', 'name' = 'gho_drink_data'),
+  "geocolumn" = "GEO",   
+  "options" = list("header" = TRUE),
+  "select" = c("TIME","Beer","Wine","Spirits","Other","isocode")
+  )
+# eurostat -> File contains data about un/employment in Europe
+EUROconfig <- list(
+  "filepath" = getSystemConformPath('rawdata/eurostat/lfsa_pganws_1_Data.csv'), 
+  "exportOptions" = list('folder' = 'clean_euro_data', 'name' = 'unemployed_persons_data'),
+  "geocolumn" = "GEO",  
+  "options" = list("header" = TRUE),
+  "select" = c("TIME","WSTATUS","Value","isocode"),
+  "filter" = list("cols" =list("WSTATUS"), "conds" = list("Unemployed persons")) # add multiple arguments support
+  )
+# undata -> File contains data about global gdp
+UNconfig <- list(
+  "filepath" = getSystemConformPath('rawdata/undata/UNdata_Export_20190125_180059631.txt'), 
+  "exportOptions" = list('folder' = 'clean_un_data', 'name' = 'gdp_data'),
+  "geocolumn" = "Country.or.Area", 
+  "options" = list("sep"=";", "header" = TRUE),
+  "select" = c("Year","Item","Value","isocode")
+  )
+```
+
+The config lists can be added to the globalsourcemanager, note: before that they are not used. The good thing is you don't have to delete the whole config above just to remove one source. Just take it out of the list. The keys are the names of the later import environments.
+```{r}
+# ADD import config to global config --> NOTE that the key is the name of the local environment
+IMPORTconfig = list('GHO' = GHOconfig, 'EURO' = EUROconfig, 'UN' = UNconfig)
+```
+
+#### Import Helper Functions
+```{r}
+## Load import relevant environments
+source('import_helper.R')
+```
+
+#### Description of helper functions
+The idea behind the import helper function is to make an kind of interface. A interface ensures that every object has the same functions with the same paramters defined but can vary from object to object. The advantage is that you can dynamic call functions on different objects and have the same naming and returns ensured. 
+We create a local environment for every source we used. We can use the helper file to create global import rules etc. One thing to do is to add the environments dynamically.
+``` {r}
+## Description
+# Import Config: (Goal is to define properties globally to make an harmonized dataset)
+parseConfig = list('decimals' = 2)
+# File contains import relevant function which will be accessed over the import controller
+# Create environments for each importer
+GHO <- new.env()
+EURO <- new.env()
+UN <- new.env()
+
+######################### GLOBAL FUNCTIONS ####################################
+# No need for adding to an special provider environment, because they don't 
+# need any specialisation
+
+# Read csv base functions can beo overloaded to dynamically enhance csv parsing
+readData <- function (filepath,ENV, ...) {
+  rData = try(read.csv(filepath, ...))
+  if(class(rData) == 'try-error') {
+    log('Failure during Reading GHO Data')
+  } else {
+    ENV$data = rData
+  }
+}
+```
+
+In the code snippet above the readData function is defined. It accepts the filepath from the config and a environment. Additionally it can be overloaded with reading options. So in theory you can add as much options you like to the reader function. The resulting data is added to the given environemnt. So it's a void function. 
+
+The next functions are like the readData function. The y don't need a special treatment (which cannot be covered by the source configuration) and so we don't have to add the to every environment, we can call them globally. 
+```{r}
+##Column cleaning
+# Description:
+# In this part for every source a function for column cleaning ia available
+selectColumns <- function (env, vColumns) {
+  env$data %<>%
+    select(vColumns)
+  # We remove NA values from here becasue replacing it with zero makes no sense....
+}
+# filter value base on a dynamic configuration
+filterValue <- function(env, cols, conds) {
+  fp <- map2(cols, conds, function(x, y) quo((!!(as.name(x))) %in% !!y))
+  env$data %<>%
+    filter(!!!fp)
+}
+
+writeCSV <- function(data, config) {
+  if(!dir.exists(file.path('data', config[['folder']])))
+    dir.create(file.path('data',config[['folder']]), showWarnings = FALSE)
+  write.csv(data, file = paste0(getwd(),"/data/",config[['folder']],"/",config[['name']],".csv"))
+}
+```
+
+In th enext part the functions are so custom that we have to add it seperatly to their environments. Note that all named the same. So we can call them dynamically during iteration over the IMPORTconfig list.  
+``` {r}
+########################## Environment attached functions ##################
+# This functions are named the same but for individualsarion they are 
+# attahced to their environemnet
+
+##Datatype claening
+# Description:
+# In this part for every source a function for DataType cleaning is available
+GHO$fixDatatypes <- function (env) {
+  # We remove NA values from here becasue replacing it with zero makes no sense....
+  env$data %<>% 
+    na.omit()
+}
+EURO$fixDatatypes <- function (env) {
+  # replace all number formattin 5,432.10 to 5432.10 and cast it to double
+  # mutate all NA values to zero
+  env$data %<>%
+    mutate(Value= as.double(gsub(",","",Value))) %>%
+    mutate(Value= if_else(is.na(.$Value),0, .$Value)) %>%
+    mutate(Value= round(.$Value, parseConfig[['decimals']]))
+}
+UN$fixDatatypes <- function (env) {
+  env$data %<>%
+    mutate(Value= if_else(is.na(.$Value),0, .$Value)) %>%
+    mutate(Value= round(.$Value, parseConfig[['decimals']]))
+}
+
+```
+
+#### Process Data
+
+Now that all methodic prerequisites are described we can actually process the data. So we iterate over the importconfig list and handle every provider based on his config.  
+At first we get the provider as an environment. Afterwards we use the readData function from the import-helper file to read the data based on the import-config. 
+``` {r, warning=FALSE}
+# Iterate over provider environments and make tidy data
+for (provider in names(IMPORTconfig)) {
+  # get variable as environment
+  tempENV = get(provider)
+  # Read environment dependent data, overloading the function is possible
+  readData(
+    IMPORTconfig[[provider]][['filepath']], 
+    tempENV, 
+    # add es many options, is an ... function, should be more dynamically. Currently we need to add a default for ervery non set option
+    sep = ifelse("sep" %in% names(IMPORTconfig[[provider]][['options']]), IMPORTconfig[[provider]][['options']][['sep']], ","), 
+    header=as.logical(ifelse("header" %in% names(IMPORTconfig[[provider]][['options']]), IMPORTconfig[[provider]][['options']][['header']], FALSE))
+    )
+  # rename geocolumn for later join
+  # first get a column matrix for all columns which matches the geocolumn metatag and 0 whne there is no match
+  i1 <- match(colnames(tempENV$data), IMPORTconfig[[provider]][['geocolumn']], nomatch = 0)
+  # get the position of the first occurence of such a column
+  index = match(c(max(i1, na.rm=TRUE)),i1)
+  # renmae column
+  colnames(tempENV$data)[index] <- 'geolabel'
+  # isoreferencing the data via the custom package
+  # Sadly the handling fo dplyr with variable representation of strings is not suitable for dynamic joining...
+  # So we have to harmonize geocolumn and to pass a constant to the function...
+  referencedData = isoref(tempENV$data, 'geolabel')
+  # select the matched dataframe
+  tempENV$data = referencedData[['matched']]
+  # fix datatypes
+  tempENV$fixDatatypes(tempENV)
+  # only use in config described select columns
+  tempENV$data = selectColumns(tempENV, IMPORTconfig[[provider]][['select']])
+  # if a filter is defined in config, filter dynamically
+  if("filter" %in% names(IMPORTconfig[[provider]])) {
+    tempENV$data = filterValue(tempENV,IMPORTconfig[[provider]][['filter']][['cols']], IMPORTconfig[[provider]][['filter']][['conds']])
+  }
+  # write csv with config options
+  writeCSV(tempENV$data,IMPORTconfig[[provider]][['exportOptions']])
+}
+```
+
+#### Conclusion 
+The goal was to define an import data model that can handle multiple sources in a most generic way. So every function of the import-helper which is used during data processing should be either be customized to each datasource by the source config, or if it is to special by their source environment.
+The second target was to be european union language conform and consider in our process the various spoken languages. So we tried to do this by adding the external github country data to our project and make an custom r package as an wrapper around. 
+

@@ -10,12 +10,20 @@ library(isoreferencing)
 library(magrittr)
 library(dplyr)
 library(purrr)
-print(list.files())
 # Create directories if the don't exist for exporting data
 if(!dir.exists(file.path('.', 'data')))
   dir.create(file.path('.','data'), showWarnings = TRUE)
 
+# Manual for source-config: 
+# "filepath" = --> path to the rawfile - make sure to use the "correct path to os" function from custom isoreferencing package  
+# "exportOptions" = list('folder' = <targetfiolder>, 'name' = <filename>),
+# "geocolumn" = --> name of the geocolumn,  
+# "options" = list("header" = <boolean>) --> here you can define import options,
+# "select" = c("column1","column2","column5"), --> which column you want in the processed file
+# "filter" = list("cols" =list("WSTATUS"), "conds" = list("Unemployed persons")) # add multiple arguments support -_> should be a gnereic filter....but     supports currently only one filter. Should make the filter process configurable...
+
 # Fileenvironemnets
+
 # gho -> File contains Data about drinking behaviour on countrylevel
 GHOconfig <- list(
   "filepath" = getSystemConformPath('rawdata/gho/gho_csv.csv'), 
@@ -23,7 +31,7 @@ GHOconfig <- list(
   "geocolumn" = "GEO",   
   "options" = list("header" = TRUE),
   "select" = c("TIME","Beer","Wine","Spirits","Other","isocode")
-  )
+)
 # eurostat -> File contains data about un/employment in Europe
 EUROconfig <- list(
   "filepath" = getSystemConformPath('rawdata/eurostat/lfsa_pganws_1_Data.csv'), 
@@ -32,7 +40,7 @@ EUROconfig <- list(
   "options" = list("header" = TRUE),
   "select" = c("TIME","WSTATUS","Value","isocode"),
   "filter" = list("cols" =list("WSTATUS"), "conds" = list("Unemployed persons")) # add multiple arguments support
-  )
+)
 # undata -> File contains data about global gdp
 UNconfig <- list(
   "filepath" = getSystemConformPath('rawdata/undata/UNdata_Export_20190125_180059631.txt'), 
@@ -40,7 +48,7 @@ UNconfig <- list(
   "geocolumn" = "Country.or.Area", 
   "options" = list("sep"=";", "header" = TRUE),
   "select" = c("Year","Item","Value","isocode")
-  )
+)
 
 # ADD import config to global config --> NOTE that the key is the name of the local environment
 IMPORTconfig = list('GHO' = GHOconfig, 'EURO' = EUROconfig, 'UN' = UNconfig)
