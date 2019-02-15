@@ -279,3 +279,127 @@ print(withoutFunction$state)
 ```
 As you can see, its quite easy to change the value of the wealth-member of the version without an function returning an list. This can lead to a lot of unstable behaviours in huge projects. So its better to use setters and getters, because so you can control every member access by an function which adds the possibility to us f.ex an type validator before you set the value of a member (very important in languages that are not typesafe like r). 
 
+## Exercise d: 
+
+a) Create a makeExpert Method which supports both types. After the function call we create both bidder objects and add them to a list with the name models afterwards. we also rewrite the state function that it returns the max wealth ob oth wealth. So we kno when both of them reache zero. 
+b) Each one of them has it own biider and constructor because the result of one expert shouldn't mess up the memebers of the other expert. They should be incapsulated and independent for each porcess. Otherwise they would refer to the same wealth and same position because the superassinment searches for the next parent variable "to use".  
+``` {r}
+# Make one export object for both: Method 1
+makeExpertCommon <- function(ncolumns, wealth=.05, frac=.5) {
+  # Create both models one for the geometry bidder model
+  expertGeom <- makeExpert(
+    makeBidderGeom(wealth, frac),
+    makeRawSource(ncolumns))
+  # and one with the const bidder model
+  expertConst <- makeExpert(
+      makeBidderConst(wealth, frac),
+      makeRawSource(ncolumns))
+  list(
+    #create function models to retrieve the injected bidder models as a list, currently its hardcode but the code would be support multiple list items as well
+    models = function() {
+      list(
+        expertGeom,
+        expertConst
+        )},
+    # Create a state function which respects both used models
+    state = function() {
+      list(
+        # get the maximum wealth of both models -> we need that for the while loop -> only abort if both (the max of the wealth is 0)
+        wealth = max(expertGeom$state()$wealth, expertConst$state()$wealth)
+      )
+    }
+  )
+}
+
+## Enhance makeExpert to set biddername dynmaically
+makeExpert <- function (bidder, constructor, method) {
+  list(	
+    # object member which defines the modelclass
+    name         = method,
+    bidder       = bidder,
+    constructor  = constructor,
+    # state function which refers to the value of the state functions of the bidder and constructor class, so it monitors the state of the subclasses
+    state        = function() { 
+      list(
+        wealth   = bidder$state()$wealth,
+        position = constructor$state()$position
+      )
+    },
+    # returns wealth, depending on the model a fractional of the wealth or a constant , or the rest if the wealth value reach a minimum. 
+    bid          = function() { bidder$bid() },
+    # iterates to next position of the column vector which is not NA and set the previouspointer to former pointer position
+    feature      = function() { constructor$generateFeature() },
+    # returns true if position pointer reaches first element, so the iteration is finished, doesn't mean that the job is done
+    finishedPass = function() { constructor$state()$position == 0 },
+    # returns true if all column vectors have the value NA, so for this bidder modell all vector columns passed the test and vector entity was set to NA
+    finished     = function() { constructor$state()$nactive == 0 },
+    # bid was accepted and wealth will be raised (dependning on modell) and last pointer position (previus position) will be set to NA
+    passTest     = function(a) {
+      bidder$bidAccepted(a)
+      constructor$dropLastFeature() 
+    },
+    # bid was rejetected, so wealth was reduced and nothing else happens
+    pay          = function(payment) {
+      bidder$bidRejected(payment)
+    },
+    # pointer will be reset to the start-> to the maximum value == position of column vector
+    udPass       = function() { constructor$udPass() }
+  )
+}
+
+
+
+# Make an optional bidder object for both: Method 2
+makeExpertGeom <- function(ncolumns, wealth=.05, frac=.5, method) {
+  if(method == 'const') {
+    bidder = makeBidderConst(wealth, frac)
+  } else if(method == 'geom') {    
+    bidder = makeBidderGeom(wealth, frac)
+  } else {
+    # default value
+    bidder = makeBidderGeom(wealth, frac)
+  }
+   makeExpert(
+    bidder,
+    makeRawSource(ncolumns),
+    method
+  ) 
+}
+```
+
+c) Excute both methods onto test:
+```{r}
+seed = 421232
+set.seed(seed)  # ensures everyone gets the same "random" numbers
+nNull = 20; nNonNull = 20
+nulls = runif(nNull)
+nonNulls = runif(nNonNull, 0, .05)
+pvals = sample(c(nulls, nonNulls))  # vector of pvalues/hypotheses to test
+
+omega = .1  # initial alpha-wealth and reward for rejection
+methods = c('geom','const')
+for(method in methods) {
+  expert = makeExpertGeom(length(pvals), wealth=omega/2, frac=.1, method)
+  rejectedHyp = list()
+  pass = 1
+  while (!expert$finished() && expert$state()$wealth > 0) {
+    index = expert$feature()
+    bid = expert$bidder$bid()
+    expert$pay(bid)
+    if (pvals[index] < bid) {
+      expert$passTest(omega)
+      rejectedHyp[[1+length(rejectedHyp)]] = index
+    }
+    if(expert$finishedPass()) {
+      expert$udPass()
+      pass = pass+1
+    }
+  }
+  rejectedHyp; pass
+  pvals[unlist(rejectedHyp)]
+  print(paste0('Method:', method))
+  print(pvals)
+}
+
+```
+
