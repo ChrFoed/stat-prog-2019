@@ -1,13 +1,13 @@
 # stat-prog-2019
 Repository for the statistical programming endproject
 
-# Load EU Employment Data
+# Load Data
 
 ## Rawdata Location:
-Data is located in the folder rawdata_employment_eu, sadly it isn't automatic fetchable yet from the source
+Data is located in the folder rawdata, sadly it isn't automatic fetchable yet from the source
 
-## Processing
-Can be fetched by execute the import_employment_data.R 
+## Processingdata
+will be processed by import_controller.R
 
 ## Dependencies
 * custom isoreferencing package, has to be build with devtools, should be installed
@@ -16,9 +16,9 @@ Can be fetched by execute the import_employment_data.R
 * dplyr
 
 ### Things to consider
-* Process can have multile work status variables (WSTATUS)
-* It should be not necessary to specify the language, custom iso ref package is multilingual
-* data will be stored in data/clean_employment_data
+* Take a look into the import_controller.R to change the sourceconfigs
+* It should be not necessary to specify the language for the countrynames, custom iso ref package is multilingual
+* data will be stored in data/... --> defined by the sourceconfig
 
 # Additional Packages
 
