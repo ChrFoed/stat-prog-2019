@@ -1,0 +1,281 @@
+---
+title: "Endproject Exercise 3"
+author: "Christian Födermayr, Karol Jakob Kulmar"
+date: "2/15/2019"
+output: html_document
+---
+  
+  ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Exercise a+b:
+
+I would prefer
+
+## Common Information:
+The following functions are using constructors to create models/objects like a factory. F.ex the makeBidderGeom function is a constructor (in programming a constructor returns an object (mostly named as class)which has a predefined set of members. They can be variables, functions... adn so on) for  an "bid" object, which is represented by a list. Lists are useful because they are vectors which can store multiple different types of objects. The great advantages of an constructor is that the created objects are encapsuled. You can spawn an huge amount of them and every bid-class change only the variables in their scope, if they are not exposed in public. 
+
+Note: i don't prefer inline comments (except really important ones), i think its like Ikea, i prefer to read the manual and look in advance what steps are the first, the last,... and the go trough it point for point. And it keeps the code more readable.
+
+## Bidder Functions:
+
+### Bidder Geom
+
+```{r}
+# Description: Constructs a bidder object 
+# Functionparameters: wealth <double> > 0, frac <double> > 0 
+# Functionmembers:
+# state <type= function>: returns the value of the two other classmembers: wealth, frac as a list
+# bidAccepted <type= function>: takes the an number and adds it to the variable wealth (win situation)
+# bidRejected <type= function>: takes the an number and substract it from the variable wealth (lose situation)
+# bid <type= function>: checks if wealth is greater than 0.0001, if so the bid is calculated as an ratio(frac) from the current wealth, otherwise the rest of the wealth variable is returned (NOTE: there must be a better way than a hardcoded comparison)
+# wealth <type=variable number>: not currently set on list, but added to the function scope
+# frac <type=variable double>: not currently set on list, but added to the function scope
+makeBidderGeom = function(wealth=.05, frac = .5) {
+  list( 
+    state = function() {list(wealth = wealth,frac = frac)},
+    bidAccepted = function(a) { wealth <<- wealth + a },
+    bidRejected = function(d) { wealth <<- wealth - d },
+    bid = function()  { ifelse(wealth > .0001, wealth*frac, wealth) }
+    # ifelse statement ensures termination by eventually bidding remaining wealth
+  )
+}
+```
+Note: the superassignmnet "<--" in the bid accepted function assigns the wealth value to the variablename which can be found upwards in the next envrionment. Here to the list object which is the parent environment of the bidAccepted or bidRejetcted function.
+
+###Bidder Const
+
+```{r}
+# Description: Constructs a bidder object 
+# Functionparameters: wealth <double> > 0, const <double> > 0 
+# Functionmembers:
+# state <type= function>: returns the value of the two other classmembers: wealth, const as a list
+# bidAccepted <type= function>: takes the an number and adds it to the variable wealth (win situation)
+# bidRejected <type= function>: takes the an number and substract it from the variable wealth (lose situation)
+# bid <type= function>: checks if wealth is greater than the constant, if so the bid function returns the constant value, otherwise the rest of the wealth variable
+# wealth <type=variable number>: not currently set on list, but added to the function scope
+# const <type=variable double>: not currently set on list, but added to the function scope
+makeBidderConst = function(wealth=.05, const=.01) {
+  list( 
+    state = function() {list(wealth  = wealth,const   = const)},
+    bidAccepted = function(a) { wealth <<- wealth + a },
+    bidRejected = function(d) { wealth <<- wealth - d },
+    bid = function()  { ifelse(wealth >= const, const, wealth) }  
+    # can't bid more than current wealth
+  )
+}
+```
+
+### Small Example:
+
+```{r, collapse=TRUE, results=FALSE}
+# Example: We construct two bid-classes and explain what the classes and function do with an gambling example
+# Rich person: He has more wealth, and he is clever because he doesn't bid much of his wealth, only 10%
+bidRich = makeBidderGeom(200,.1)
+# get the current state, returns wealth=200, frac=0.1
+bidRich$state()
+# Poor Person: He has less wealth and nothing to loose, so he bid 50% of his wealth every bid
+bidPoor = makeBidderGeom(10,.5)
+# get the current state of the poor, returns wealth=10, frac=0.5
+bidPoor$state()
+
+# Start the gambling:
+# Now we want the Richguy to bid an he should loose the first try
+bidRich$bidRejected(bidRich$bid())
+# He lost 10% of his wealth and not has an state of wealth=180, frac=0.1
+bidRich$state()$wealth
+
+# The next turn is the poorguy
+bidPoor$bidAccepted(bidPoor$bid())
+# He lost 10% of his wealth and not has an state of wealth=15
+bidPoor$state()$wealth
+
+# Next round the rich guy wins his bid
+bidRich$bidAccepted(bidRich$bid())
+bidRich$state()$wealth
+# He raise his wealth from 180 to 198 
+# And so on....
+```
+
+### Conclusio: 
+The first bid class, if the player wins every time, will lead to an exponential grow of his wealth. If he loose every time it will lead to an logarithmic decline of his wealth. If there wouldn't be any abort "if condition"" in the bid function it would be going on forever (or how much decimals places r supports)
+The second bid class: it will lead to an linear growth or to an linear decline of the wealth
+
+## Constructors:
+
+```{r}
+## Constructor Definition:
+# Functionparameters: ncolumns <int> > 0
+# name <type String>: Name of the current class
+# state <type=function>: Returns list, with the following properties
+#   - position <int>: current Pointer Position, (init with ncolumns cause we start backwards)
+#   - prevPosition <int|NA>: previous pointer Position (init with NA)
+#   - active <seqence>: current active column
+#   - nactive <int>: active columns (not set NA=active)
+# generateFeature <type=function>: Returns prevPosition and sets prevPostion to the current one (with superassignement) and the current position to the current one      
+# dropLastFeature <type=function>: Sets the previous Pointer position to NA, this column will be thrown away
+# udPass <type=function>: Resets pointer to the end of the sequence (more exact to the highest vaöue in the vector which is not NA)
+makeRawSource <- function(ncolumns) {
+  # here we are defining the further used values, we could to this also as function parameters. To define in the function avoids erros by wrong function     calls...
+  # Create a sequence with default, so 1 2 3 ....10
+  activeColumns  = 0:ncolumns
+  # define the position of the "cursor" -> note: we start from the back
+  position       = ncolumns
+  prevPosition   = NA
+  nactive        = ncolumns
+  list(	
+    # naming things is important, if you have an vector with different modelclasses in it, then you can easily get the object type with a member
+    name = "Marginal",
+    state = function() { 
+      list(
+        position     = position, 
+        prevPosition = prevPosition,
+        active       = activeColumns,
+        # create a logical vector with the is.na operator and count the Trues to find out how many are still active
+        # we dont count the first one [-1] cause its the last and we need one less
+        nactive      = sum(!is.na(activeColumns[-1]))
+      )
+    },
+    generateFeature = function() { 
+      prevPosition  <<- position
+      # get all vector elements that are smaller than the pointer value and not NA and from them take the MAX
+      position      <<- max(activeColumns[activeColumns < position], na.rm=T)
+      return(prevPosition) 
+    },
+    dropLastFeature = function() { activeColumns[prevPosition+1] <<- NA },
+    # +1 accounts for the zero at the beginning of the activeColumns vector --- Because R starts at 1 :-/
+    udPass = function() {
+      position <<- max(activeColumns, na.rm=T)
+      prevPosition <<- NA
+    }
+  )
+}
+# Function summary of base Functions 
+# position: p
+# prevposition: pp
+# notactive: NA
+# 
+# Start with ncolumns:7 -> init p with max of column vector pp=NA 
+# [ 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 ]
+#                               p   pp=NA
+# execute: 2x generateFeature():
+# [ 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 ]
+#                       p   pp
+# execute: dropLastFeature -> set pp column vector position to NA
+# [ 0 | 1 | 2 | 3 | 4 | 5 | NA | 7 ]
+#                       p   pp
+# execute: generateFeature():
+# [ 0 | 1 | 2 | 3 | 4 | 5 | NA | 7 ]
+#                   p   pp
+# execute: udPass(): -> max number of column vector without NA => 7
+# [ 0 | 1 | 2 | 3 | 4 | 5 | NA | 7 ]
+#                                p   pp
+# execute: generateFeature(): -> pp get position from last state, p get max number of column vector which is not NA and < position (7)
+# [ 0 | 1 | 2 | 3 | 4 | 5 | NA | 7 ]
+#                       p        pp
+```
+
+#### Conclusio: 
+The Constructer returns an quite solid iterator with an logic to skip NA's. The generateFeature Function returns an unnecessary result, and it would fulfill it's work in this scope with an void retun too. But i guess the function requirements will be enhanced in the next functions. 
+
+## Experts:
+```{r}
+## Constructor Definition:
+# Functionparameters: bidder <list_environment>, constructo <list_environment>
+# class members
+# name <type String>: Name of the current class
+# bidder <list_env>, contains bidder class
+# construct <list_env>, contains constructor class
+# state <type=function>: Returns list, with the following properties
+#    - wealth <double>: returns wealth of state function of bidder class
+#    - positon <int>: returns position of state function of constructor class
+#
+# bid <type=function>: Calls bid function on bidder class; Returns: <double> contains fraction or constant from wealth (depends on bidder class) 
+# feature <type=function>: Calls generateFeature function on constructer class; Returns: <int> previous position of position 
+# finishedPass <type=function>: Calls position state on constructer calls; Retuns <boolean> True if constructor pointer is 0, False when not
+# finished <type=function>: Calls state on constructer and evaluate active Column state; Retuns <boolean> False if there are empty columns left, True otherwise
+# passTest <type=function> f(<double>): let bidder class accept the bid an triggers drop last feature function which set ppointer to NA; Returns void
+# pay <type=function> f(<double>): bid was rejected and via the bidder class wealth gets reduced
+# udPass <type= function> : triggers function udPass which restes the pointer and ppointer to NA
+makeExpert <- function (bidder, constructor) {
+  list(	
+    # object member which defines the modelclass
+    name         = "Geom",
+    bidder       = bidder,
+    constructor  = constructor,
+    # state function which refers to the value of the state functions of the bidder and constructor class, so it monitors the state of the subclasses
+    state        = function() { 
+      list(
+        wealth   = bidder$state()$wealth,
+        position = constructor$state()$position
+      )
+    },
+    # returns wealth, depending on the model a fractional of the wealth or a constant , or the rest if the wealth value reach a minimum. 
+    bid          = function() { bidder$bid() },
+    # iterates to next position of the column vector which is not NA and set the previouspointer to former pointer position
+    feature      = function() { constructor$generateFeature() },
+    # returns true if position pointer reaches first element, so the iteration is finished, doesn't mean that the job is done
+    finishedPass = function() { constructor$state()$position == 0 },
+    # returns true if all column vectors have the value NA, so for this bidder modell all vector columns passed the test and vector entity was set to NA
+    finished     = function() { constructor$state()$nactive == 0 },
+    # bid was accepted and wealth will be raised (dependning on modell) and last pointer position (previus position) will be set to NA
+    passTest     = function(a) {
+      bidder$bidAccepted(a)
+      constructor$dropLastFeature() 
+    },
+    # bid was rejetected, so wealth was reduced and nothing else happens
+    pay          = function(payment) {
+      bidder$bidRejected(payment)
+    },
+    # pointer will be reset to the start-> to the maximum value == position of column vector
+    udPass       = function() { constructor$udPass() }
+  )
+}
+```
+
+#### Conclusio:
+The make expert function is basically just a wrapper class to combine the important state properties of the bidder and constructor class. So it provides public functions to access both classes with one common class and keeps the wealth of the bidder and the position of the constructor (more an iterator) in sync. 
+
+## make Export Geom
+```{r}
+## Constructor Definition:
+# Description: just a wrapper for the makeExpert, function scope will contain the same members as makeExpert
+# Functionparameters: ncolumns <int>, wealth <double> [default=0.05], frac <double> [frac=0.5]
+makeExpertGeom <- function(ncolumns, wealth=.05, frac=.5) {
+  makeExpert(
+    makeBidderGeom(wealth, frac),
+    makeRawSource(ncolumns)
+  )
+}
+```
+#### Conclusion
+Just a helper/wrapper for makeExpert class creation with better functionsparams
+
+## Exercise c: 
+
+#### Questions:
+*The state function returns the values of the private variables. Why is this a function that
+returns a list and not just a list of the values of the private variables?* 
+#### Answer:
+We don't return a list bescause the elements would be direct accessible from outside of the list environment, and is during an workflow in an insecure state.
+Small example with both version:
+```{r}
+# with function
+f1 = function() {list(state= function() { list(wealth=10,position = 2)})}
+# without function
+f2 = function() {list(state= list(wealth=10,position = 2))}
+# Initialise function
+wFunction = f1()
+withoutFunction = f2()
+# Returns the same result
+print(wFunction$state())
+print(withoutFunction$state)
+# Change Values
+# wFunction$state()$wealth=1000 // will throw an error....
+withoutFunction$state$wealth = 1000
+# Returns differnet states
+print(wFunction$state())
+print(withoutFunction$state)
+```
+As you can see, its quite easy to change the value of the wealth-member of the version without an function returning an list. This can lead to a lot of unstable behaviours in huge projects. So its better to use setters and getters, because so you can control every member access by an function which adds the possibility to us f.ex an type validator before you set the value of a member (very important in languages that are not typesafe like r). 
+
