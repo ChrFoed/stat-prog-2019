@@ -9,7 +9,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 ##Load Packages
-# NOTE: Make more elegant way to install library(rjson).....maybe as a package
 ```{r, include=FALSE}
 library(dplyr)
 library(magrittr)
